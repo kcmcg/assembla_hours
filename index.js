@@ -2,35 +2,61 @@ const Nightmare = require('nightmare')
 const nightmare = Nightmare({show:true});
 const userDetails = require("./config.json");
 
-const getAddress = async id => {
+const loginToAssembla = async (done) => {
+    let result = false;
     try {
-        const result = await nightmare
-            .goto('https://app.assembla.com/spaces/sdtest/time_entries/report')
-            .type("#user_login",userDetails.user)
-            .type("#user_password",userDetails.password)
-            .click("#signin_button")
-            .wait(5000)
-            .evaluate(selector => {
+        let visible = await nightmare
+            .visible("#user_login")
+
+        if(visible) {
+            await nightmare
+                .type("#user_login",userDetails.user)
+                .type("#user_password",userDetails.password)
+                .click("#signin_button")
+                .wait(5000)
+                .then(async () => {
+                    result = await done()
+                });
+        }
+        else {
+            result =  await done();
+        }
+    } catch(e) {
+        console.error(e);
+        return "error";
+    }
+
+    return result;
+};
+
+const getNameList = async (url) => {
+    try {
+        await nightmare
+            .goto(url);
+
+        let result = await loginToAssembla(async () => {
+            return await nightmare.evaluate(selector => {
                 var x = jQuery("." + selector);
                 var returnHtml = {};
 
                 x.each(function() {
                     var value = jQuery(this).val();
-                    var name = jQuery(this).parent().children("span").html();
-
-                    returnHtml[value] = name;
+                    returnHtml[value] = jQuery(this).parent().children("span").html();
                 });
-
                 return returnHtml;
-        }, "user_check_box_list");
-
-        console.log(result);
-
-        return { id, address:result[0], lease: result[1]};
+            }, "user_check_box_list");
+        });
+        return { names:result};
     } catch (e) {
         console.error(e);
-        return undefined;
+        return "error";
     }
-}
+};
 
-getAddress(1);
+const runReports = async (url) => {
+    let nameList = await getNameList(url);
+
+    console.log(nameList);
+};
+
+runReports('https://app.assembla.com/spaces/sdtest/time_entries/report');
